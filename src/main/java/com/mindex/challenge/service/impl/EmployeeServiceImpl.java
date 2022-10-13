@@ -2,11 +2,14 @@ package com.mindex.challenge.service.impl;
 
 import com.mindex.challenge.dao.EmployeeRepository;
 import com.mindex.challenge.data.Employee;
+import com.mindex.challenge.data.ReportingStructure;
 import com.mindex.challenge.service.EmployeeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -45,5 +48,33 @@ public class EmployeeServiceImpl implements EmployeeService {
         LOG.debug("Updating employee [{}]", employee);
 
         return employeeRepository.save(employee);
+    }
+
+    @Override
+    public ReportingStructure getReportees(String id) {
+        LOG.debug("Fetching reporting structure for employeeId=", id);
+        Integer totalNumberOfReportees = 0;
+
+        Employee employee = read(id);
+        if (employee == null) {
+            throw new RuntimeException("Invalid employeeId: " + id);
+        } else {
+            if (employee.getDirectReports() != null) {
+                totalNumberOfReportees = findReportees(employee, totalNumberOfReportees);
+            }
+            return new ReportingStructure(employee, totalNumberOfReportees);
+        }
+    }
+
+    private Integer findReportees (Employee employee, Integer totalNumberOfReportees) {
+        for (Employee employeeReportee: employee.getDirectReports()) {
+            employeeReportee = read(employeeReportee.getEmployeeId());
+            if (employeeReportee != null && employeeReportee.getDirectReports() != null) {
+                totalNumberOfReportees = findReportees(employeeReportee, totalNumberOfReportees);
+            }
+            totalNumberOfReportees++;
+        }
+        LOG.debug("totalNumberOfReportees="+totalNumberOfReportees);
+        return totalNumberOfReportees;
     }
 }
