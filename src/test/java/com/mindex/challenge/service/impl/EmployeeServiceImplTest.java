@@ -1,6 +1,7 @@
 package com.mindex.challenge.service.impl;
 
 import com.mindex.challenge.data.Employee;
+import com.mindex.challenge.data.ReportingStructure;
 import com.mindex.challenge.service.EmployeeService;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,22 +16,24 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.junit4.SpringRunner;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class EmployeeServiceImplTest {
-
     private String employeeUrl;
     private String employeeIdUrl;
+    private String reportingStructureUrl;
 
     @Autowired
     private EmployeeService employeeService;
-
     @LocalServerPort
     private int port;
-
     @Autowired
     private TestRestTemplate restTemplate;
 
@@ -38,15 +41,12 @@ public class EmployeeServiceImplTest {
     public void setup() {
         employeeUrl = "http://localhost:" + port + "/employee";
         employeeIdUrl = "http://localhost:" + port + "/employee/{id}";
+        reportingStructureUrl = "http://localhost:" + port + "/employee/reportees/{id}";
     }
 
     @Test
     public void testCreateReadUpdate() {
-        Employee testEmployee = new Employee();
-        testEmployee.setFirstName("John");
-        testEmployee.setLastName("Doe");
-        testEmployee.setDepartment("Engineering");
-        testEmployee.setPosition("Developer");
+        Employee testEmployee = createEmployee("John", "Doe", "Engineering", "Developer");
 
         // Create checks
         Employee createdEmployee = restTemplate.postForEntity(employeeUrl, testEmployee, Employee.class).getBody();
@@ -77,10 +77,46 @@ public class EmployeeServiceImplTest {
         assertEmployeeEquivalence(readEmployee, updatedEmployee);
     }
 
+    @Test
+    public void testReportingStructure() {
+        Employee directReportee1 = createEmployee("Max", "Fury", "Engineering", "Fresher");
+        Employee directReportee2 = createEmployee("Rain", "Bow", "Engineering", "Fresher");
+
+        Employee reportee1 = restTemplate.postForEntity(employeeUrl, directReportee1, Employee.class).getBody();
+        Employee reportee2 = restTemplate.postForEntity(employeeUrl, directReportee2, Employee.class).getBody();
+
+        assertEmployeeEquivalence(reportee1, directReportee1);
+        assertEmployeeEquivalence(reportee2, directReportee2);
+
+        Employee testEmployee = createEmployee("John", "Doe", "Engineering", "Developer");
+        List<Employee> directReportees = new ArrayList<Employee>();
+        directReportees.add(reportee1);
+        directReportees.add(reportee2);
+        testEmployee.setDirectReports(directReportees);
+
+        // Create checks
+        Employee createdEmployee = restTemplate.postForEntity(employeeUrl, testEmployee, Employee.class).getBody();
+        assertNotNull(createdEmployee.getEmployeeId());
+        assertNotNull(createdEmployee.getDirectReports());
+
+        //ReportingStructure check
+        ReportingStructure reporteeInfo = restTemplate.getForEntity(reportingStructureUrl, ReportingStructure.class, createdEmployee.getEmployeeId()).getBody();
+        assertEquals(Integer.valueOf(2), reporteeInfo.getNumberOfReportees());
+    }
+
     private static void assertEmployeeEquivalence(Employee expected, Employee actual) {
         assertEquals(expected.getFirstName(), actual.getFirstName());
         assertEquals(expected.getLastName(), actual.getLastName());
         assertEquals(expected.getDepartment(), actual.getDepartment());
         assertEquals(expected.getPosition(), actual.getPosition());
+    }
+
+    private Employee createEmployee(String firstName, String lastName, String department, String position) {
+        Employee employee = new Employee();
+        employee.setFirstName(firstName);
+        employee.setLastName(lastName);
+        employee.setDepartment(department);
+        employee.setPosition(position);
+        return employee;
     }
 }
